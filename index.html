@@ -1,0 +1,407 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <style>
+    body{
+      margin: 40px;
+    }
+        
+    #game_table {
+      width: auto;
+      height: auto;
+    }
+
+    td {
+      padding: 0px 0px;
+      border-radius: 2px;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      font: 12pt sans-serif;
+      font-weight: bold;
+    }
+    
+    .close{
+      border: 1px solid rgb(13,113,185);
+      background: white;
+    }
+
+    .close:hover {
+      cursor: pointer;
+      background:#DEF1FF;
+    }
+    
+    .fire {
+      background:#FF0000;
+    }
+
+    .open {
+      border: 1px solid #B6DFFC;
+      background: #B6DFFC;
+      color: rgb(13,113,185);
+    }
+
+    .open.mine {
+      color: red;
+    }
+
+    .mark
+    {
+      color: red;
+    }
+
+    .number1{
+      color:#0000FF;
+    }
+
+    .number2{
+      color:#007B00;
+    }
+
+    .number3{
+      color:#FF0000;
+    }
+
+    .number4{
+      color:#00007B ;
+    }
+
+    .number5{
+      color:#7B0000;
+    }
+    
+
+    button{
+      margin: 20px;
+      border: 1px solid rgb(13,113,185);
+      border-radius: 5px;
+      background: white;
+      font: 11pt sans-serif;
+      color: rgb(13,113,185);
+      padding: 5px 20px;
+      box-shadow: 2px 2px 2px rgba(0, 0, 0, .3);
+    }
+
+    button:hover{
+      background:#DEF1FF;
+    }
+    
+    #winner{
+      color: #D40E1E;
+      font-weight: bold;
+      font: 14pt sans-serif;
+    }
+
+    #leftcounter{
+      color:rgb(13,113,185);
+      font-weight: bold;
+      font: 14pt sans-serif;
+    }
+  
+    span{
+      font: 11pt sans-serif;
+    }
+
+    .radio_td
+    {
+      width: auto;        
+      text-align: left;
+    }
+      
+  </style>
+</head>
+
+<body>
+  <div align='center' >
+    <table id='game_table' cellspacing="1" >
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+  <p></p>
+  <div align='center'><span>Спрятано мин: </span> <span id="leftcounter"> 100</span></div>
+  <p></p>
+  <div align='center' width ='auto' >
+    <table id='radio_table'>
+      <tbody>
+        <tr>
+          <td class="radio_td">
+            <input name="r1" type="radio" value="begginer" checked ><span>Новичок: поле 9х9 клеток с 10 минами</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="radio_td">
+            <input name="r1" type="radio" value="expert"><span>Любитель: поле 16х16 клеток с 40 минами</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="radio_td">
+            <input name="r1" type="radio" value="profi"><span>Профессионал: поле 16х30 ячеек с 99 минами</span>
+          </td>
+      </tr>
+      </tbody>
+    </table>
+    
+    <button id='restart_button' align='center' onclick="onrestart()" >Restart</button>
+    <div id="winner" align='center' hidden>Congratulation!
+    </div>
+  </div>
+    
+  <script>
+    let rows_cnt = 9;
+    let columns_cnt = 9;
+    let mines_cnt = 10;
+        
+    let gameTable = document.getElementById('game_table');
+    let tbody=gameTable.querySelector('TBODY');
+    let winner = document.getElementById('winner');
+    let leftminecounter = document.getElementById('leftcounter');
+    
+    onrestart();
+
+    gameTable.onclick= function(event) {
+      var td = event.target;
+
+      if(!td.matches('TD')) return;
+      if(!td.matches('.close')) return;
+      if(td.matches('.mark')) return;
+
+      let tr = td.closest('TR');
+      if(!tr) return;
+
+      console.log('*** onmousclick: TD[' + tr.rowIndex + ':' + td.cellIndex +']***');
+      
+      td.classList.remove('close');
+
+      if (td.matches('.mine')){
+        td.classList.add('fire');
+        td.innerText = 'M';
+        gameOver(false);
+        return;
+      }
+
+      td.classList.add('open');
+
+      if(+td.dataset.nearestMineCount>0) {
+        td.classList.add('number'+ td.dataset.nearestMineCount);
+        td.innerText = td.dataset.nearestMineCount;  
+      } else {
+        // open near empty cells 
+        openNearEmptyCells(td);
+      }
+      
+      let emptyClosedCells=gameTable.querySelectorAll('TD.empty.close');
+      if(emptyClosedCells && (emptyClosedCells.length==0)) gameOver(true);
+
+    };
+
+    function getEmptyCloseCell(iRow, iCnt)
+    {
+      if(!tbody.rows[iRow]) return undefined;
+      var td = tbody.rows[iRow].cells[iCnt];
+      if(!td) return undefined;
+
+      if(td.matches('.empty.close')) return td;
+      
+      return undefined;
+    }
+
+    function openNearEmptyCells(td, excludeCells){
+      if(!excludeCells) {
+        excludeCells = new Set();
+        excludeCells.add(td);
+      }
+
+      let tr = td.closest('TR');
+      if(!tr) return false; 
+
+      var nearestCells = new Set();
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex-1, td.cellIndex-1));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex-1, td.cellIndex));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex-1, td.cellIndex+1));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex, td.cellIndex-1));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex, td.cellIndex+1));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex+1, td.cellIndex-1));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex+1, td.cellIndex));
+      nearestCells.add(getEmptyCloseCell(tr.rowIndex+1, td.cellIndex+1));
+
+      for(var cell of nearestCells){
+        if(cell==undefined) continue;
+        if(excludeCells.has(cell)) continue;
+        
+        excludeCells.add(cell);
+
+        cell.classList.remove('close');
+        cell.classList.add('open');
+
+        if(+cell.dataset.nearestMineCount>0) {
+          cell.classList.add('number'+ cell.dataset.nearestMineCount);
+          cell.innerText = cell.dataset.nearestMineCount;  
+        } else {
+          // open near empty cells 
+          openNearEmptyCells(cell, excludeCells);
+        } 
+      }
+    }
+
+    gameTable.oncontextmenu = function(event) {
+      var td = event.target;
+      var td = event.target;
+
+      if(!td.matches('TD')) return;
+      if(!td.matches('.close')) return;
+
+      let tr = td.closest('TR');
+      if(!tr) return;
+
+      console.log('--- oncontextmenu: TD[' + tr.rowIndex + ':' + td.cellIndex +']---');
+      td.classList.toggle('mark');
+      td.innerText = td.matches('.mark') ? '?' : '';
+
+      let markCells=gameTable.querySelectorAll('TD.mark');
+      leftminecounter.textContent = mines_cnt-markCells.length;
+
+      return false;
+    };
+
+    function randomInteger(min, max) {
+      var rand = min - 0.5 + Math.random() * (max - min + 1)
+      rand = Math.round(rand);
+      return rand;
+    }
+
+    function isMine(iRow, iCnt)
+    {
+      if(!tbody.rows[iRow]) return false;
+
+      var td = tbody.rows[iRow].cells[iCnt];
+      if(td) return td.matches('.mine');
+      
+      return false;
+    }
+
+    function onrestart()
+    {
+      winner.hidden = true;
+      while(gameTable.rows.length)
+      {
+        gameTable.rows[0].remove();
+      }
+
+      let rad=document.getElementsByName('r1');
+      let level="";
+      for (var i=0;i<=rad.length; i++) {
+          if (rad[i].checked) {
+              level = rad[i].value;
+              break;
+          }
+      }
+
+      switch (level)
+      {
+        case 'begginer':
+          rows_cnt = 9;
+          columns_cnt = 9;
+          mines_cnt = 10;
+        break;
+        case 'expert':
+          rows_cnt = 16;
+          columns_cnt = 16;
+          mines_cnt = 40;
+        break;
+        case 'profi':
+          rows_cnt = 16;
+          columns_cnt = 30;
+          mines_cnt = 99;
+        break;
+        default:
+        return;
+      }
+
+      leftminecounter.textContent = mines_cnt;
+           
+      let cell_counter = rows_cnt*columns_cnt;
+      let setMines = new Set();
+      while(setMines.size!=mines_cnt)
+      {
+        setMines.add(randomInteger(0, cell_counter-1));
+      }
+      
+      cell_counter = 0;
+      
+      for(let iRow = 0; iRow<rows_cnt; ++iRow){
+        var tr = document.createElement('TR');
+        tbody.appendChild(tr);
+
+        for(let iCell = 0; iCell<columns_cnt; ++iCell){
+          var td = document.createElement('td');
+          td.className ='close';
+
+          if(setMines.has(cell_counter)){
+            td.classList.add('mine');
+          } else {
+            td.classList.add('empty');
+          }
+                    
+          td.appendChild(document.createTextNode(''));
+          tr.appendChild(td);
+
+          ++cell_counter;
+        } 
+
+        let emptyCells=gameTable.querySelectorAll('TD.empty');
+        for(var td of emptyCells){
+          let tr = td.closest('TR');
+          if(!tr) continue;
+
+          var mine_counter =0;
+
+          if(isMine(tr.rowIndex-1, td.cellIndex-1)) ++mine_counter;
+          if(isMine(tr.rowIndex-1, td.cellIndex)) ++mine_counter;
+          if(isMine(tr.rowIndex-1, td.cellIndex+1)) ++mine_counter;
+          if(isMine(tr.rowIndex, td.cellIndex-1)) ++mine_counter;
+          if(isMine(tr.rowIndex, td.cellIndex+1)) ++mine_counter;
+          if(isMine(tr.rowIndex+1, td.cellIndex-1)) ++mine_counter;
+          if(isMine(tr.rowIndex+1, td.cellIndex)) ++mine_counter;
+          if(isMine(tr.rowIndex+1, td.cellIndex+1)) ++mine_counter;
+                    
+          td.dataset.nearestMineCount = mine_counter;
+        }
+
+      }
+    }
+   
+    function gameOver(success)
+    {
+      winner.innerText = success ? "Congratulation! You won!" : "Sorry! But computer won. Try again!"
+      winner.hidden = false;
+
+      if(success){
+        leftminecounter.textContent = 0;
+      }
+
+      let closeCells=gameTable.querySelectorAll('TD.close');
+      for(var td of closeCells){
+        td.classList.remove('close');
+        td.classList.add('open');
+
+        if (td.matches('.mine')){
+          td.innerText = 'M';
+          continue;
+        }
+
+        if(+td.dataset.nearestMineCount>0) {
+          td.classList.add('number'+ td.dataset.nearestMineCount);
+          td.innerText = td.dataset.nearestMineCount;  
+        }
+      }
+
+      return false;
+    }
+
+  </script>  
+</body>
+
+ </html>
